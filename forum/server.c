@@ -1,14 +1,23 @@
+/*
+
+    Implementation of a broadcast server hosted on CDF at the University of
+    Toronto.
+
+*/
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/select.h>
-#include <netinet/in.h>    /* Internet domain header */
+#include <netinet/in.h>
 
 #define PORT_NUM 53666
 #define MAX_BACKLOG 5
 #define MAX_MESSAGE 28
+#define ERROR 1
 
 
 int main() {
@@ -18,7 +27,7 @@ int main() {
     if (soc < 0) {
     perror("socket");
         close(soc);
-        exit(1);
+        exit(ERROR);
     }
 
     // reuseable socket
@@ -35,17 +44,18 @@ int main() {
     if (bind(soc, (struct sockaddr *) &server, sizeof(server)) < 0) {
         perror("bind");
         close(soc);
-        exit(1);
+        exit(ERROR);
     }
 
     // wait for connections
     if (listen(soc, MAX_BACKLOG) < 0) {
         perror("listen");
         close(soc);
-        exit(1);
+        exit(ERROR);
     }
 
-    char *welcome_message = "Forum 4/7/16\n> ";
+    char welcome_message[] = "Forum 4/7/16\n> ";
+    welcome_message[strlen(welcome_message) - 1] = '\0';
     char broadcast[MAX_MESSAGE];
     int client;
 
@@ -59,7 +69,7 @@ int main() {
         if ((client = accept(soc, (struct sockaddr *) &request, &size)) < 0) {
             perror("accept");
             close(soc);
-            exit(1);
+            exit(ERROR);
         }
         
         fd_set set;
@@ -69,18 +79,23 @@ int main() {
         if (select(client + 1, &set, NULL, NULL, NULL) < 0) {
             perror("select");
             close(soc);
-            exit(1);
+            exit(ERROR);
         }
 
         if (FD_ISSET(client, &set)) {
                 
             // write message to client
-            write(client, welcome_message, MAX_MESSAGE);
+            write(client, welcome_message, strlen(welcome_message));
             
             // read data from client
             read(client, broadcast, MAX_MESSAGE - 1);
-            broadcast[MAX_MESSAGE] = '\0';
-            write(client, broadcast, MAX_MESSAGE);
+            broadcast[strlen(broadcast)] = '\0';
+
+            // display message internally
+            fprintf(stdout, "Broadcast: %s\n", broadcast);
+
+            // broadcast message to all clients
+            write(client, broadcast, strlen(broadcast));
         }
     }
 
